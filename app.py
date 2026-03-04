@@ -8,11 +8,11 @@ from ultralytics import YOLO
 
 IMG_SIZE = 1280  # locked
 
-# Class colours (BGR-style tuples for PIL)
+# Class colours
 CLASS_COLORS = {
-    "glioma":      (255, 99,  99),   # red
-    "meningioma":  (99,  220, 255),  # cyan
-    "pituitary":   (255, 210, 80),   # amber
+    "glioma":      (255, 99,  99),
+    "meningioma":  (99,  220, 255),
+    "pituitary":   (255, 210, 80),
 }
 DEFAULT_COLOR = (180, 180, 180)
 
@@ -320,8 +320,7 @@ def draw_boxes_pil(pil_img, xyxy, confs, classes):
         tw, th = 8 * len(label), 14
         draw.rectangle([x0, max(0, y0 - th - 4), x0 + tw + 6, max(0, y0)],
                        fill=color)
-        draw.text((x0 + 3, max(0, y0 - th - 2)), label,
-                  fill=(10, 10, 10))
+        draw.text((x0 + 3, max(0, y0 - th - 2)), label, fill=(10, 10, 10))
     return out
 
 
@@ -391,13 +390,6 @@ with st.sidebar:
     heatmap_alpha = st.slider("Opacity", 0.1, 0.9, 0.55, 0.05)
     heatmap_sigma = st.slider("Blob Spread", 0.1, 1.0, 0.35, 0.05)
 
-    st.markdown("<div class='section-label' style='margin-top:20px;'>Legend</div>",
-                unsafe_allow_html=True)
-    st.markdown("""
-        <span class='badge badge-glioma'>Glioma</span>
-        <span class='badge badge-meningioma'>Meningioma</span>
-        <span class='badge badge-pituitary'>Pituitary</span>
-    """, unsafe_allow_html=True)
     st.markdown(
         "<p style='font-size:0.7rem;color:#3a5a72;margin-top:16px;'>"
         "Input: {}×{} px</p>".format(IMG_SIZE, IMG_SIZE),
@@ -443,7 +435,6 @@ if uploaded:
                         mean_conf  = float(out["conf"].mean())
                         num_tumors = len(out["conf"])
                         unique_cls = list(dict.fromkeys(out["classes"]))
-
                         badges = "".join(
                             "<span class='badge badge-{}'>{}</span>".format(
                                 c, c.capitalize())
@@ -456,9 +447,12 @@ if uploaded:
                                 <p><strong>Count:</strong> {n}</p>
                                 <p><strong>Max Confidence:</strong> {mx:.1%}</p>
                                 <p><strong>Mean Confidence:</strong> {mn:.1%}</p>
+                                <p style='font-size:0.72rem;color:#a06060;margin-top:10px;
+                                   border-top:1px solid #6b1a1a;padding-top:8px;'>
+                                ⚠ Tumor type classification is experimental and
+                                may not be reliable. Do not use for diagnosis.</p>
                             </div>
-                        """.format(badges=badges, n=num_tumors,
-                                   mx=max_conf, mn=mean_conf),
+                        """.format(badges=badges, n=num_tumors, mx=max_conf, mn=mean_conf),
                             unsafe_allow_html=True)
                         boxed = draw_boxes_pil(out["proc_img"], out["xyxy"],
                                                out["conf"], out["classes"])
@@ -498,7 +492,7 @@ if uploaded:
                         x0, y0, x1, y1 = bbox
                         tumor_data.append({
                             "ID":         i + 1,
-                            "Class":      cls,
+                            "Type":       cls,
                             "Confidence": "{:.1%}".format(c),
                             "X":          int(x0),
                             "Y":          int(y0),
