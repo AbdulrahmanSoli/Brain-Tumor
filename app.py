@@ -5,6 +5,24 @@ import types
 # on Streamlit Cloud. We only use PIL for image I/O so we mock cv2 out entirely.
 _cv2_mock = types.ModuleType("cv2")
 _cv2_mock.__version__ = "4.8.0"
+
+# Stub every attribute ultralytics/patches.py touches at import time
+def _noop(*args, **kwargs): pass
+_cv2_mock.imshow   = _noop
+_cv2_mock.imread   = _noop
+_cv2_mock.imwrite  = _noop
+_cv2_mock.resize   = _noop
+_cv2_mock.cvtColor = _noop
+_cv2_mock.imencode = _noop
+_cv2_mock.imdecode = _noop
+_cv2_mock.waitKey  = _noop
+_cv2_mock.destroyAllWindows = _noop
+_cv2_mock.IMREAD_COLOR      = 1
+_cv2_mock.IMREAD_GRAYSCALE  = 0
+_cv2_mock.INTER_LINEAR      = 1
+_cv2_mock.INTER_AREA        = 3
+_cv2_mock.COLOR_BGR2RGB     = 4
+_cv2_mock.COLOR_RGB2BGR     = 4
 sys.modules["cv2"] = _cv2_mock
 
 import streamlit as st
