@@ -1,5 +1,11 @@
-import subprocess, sys
-subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless", "--force-reinstall", "--quiet"], check=False)
+import sys
+import types
+
+# Ultralytics imports cv2 at module level, which needs libGL.so.1 — unavailable
+# on Streamlit Cloud. We only use PIL for image I/O so we mock cv2 out entirely.
+_cv2_mock = types.ModuleType("cv2")
+_cv2_mock.__version__ = "4.8.0"
+sys.modules["cv2"] = _cv2_mock
 
 import streamlit as st
 import numpy as np
