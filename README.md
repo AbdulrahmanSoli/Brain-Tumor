@@ -22,7 +22,7 @@ Trained on a combined dataset of labeled MRI scans across 3 tumor classes.
 | Pituitary | 91 | 95 | 0.822 | 0.412 | 0.879 | 0.726 |
 
 - **Architecture:** YOLOv8 (YOLO26n, 122 layers, 2.37M parameters, 5.2 GFLOPs)
-- **Input resolution:** 960 × 960
+- **Input resolution:** 1280 × 1280
 - **Training:** 100 epochs, patience 20, auto batch (A100 GPU)
 - **Inference speed:** 0.7ms preprocess, 3.4ms inference per image
 - **Framework:** Ultralytics 8.4.19, PyTorch 2.10, Python 3.12
@@ -77,10 +77,10 @@ Training was done in Google Colab on an NVIDIA A100 GPU. Two Kaggle datasets wer
 ```bash
 yolo detect train \
   data=/content/brain.yaml \
-  model=yolo26n.pt \
+  model=/content/best.pt \
   epochs=100 \
   patience=20 \
-  imgsz=960 \
+  imgsz=1280 \
   batch=-1
 ```
 
