@@ -5,7 +5,7 @@ import time
 
 from ultralytics import YOLO
 
-IMG_SIZE = 960  # locked
+IMG_SIZE = 1280  # locked
 
 
 # Custom CSS for better styling
@@ -186,7 +186,7 @@ with st.sidebar:
     min_area = st.slider(
     "Minimum Box Area",
     0, 15000, 600, 50,
-    help="Filters tiny boxes (in 960×960). Set 0 to disable. Too high can remove small pituitary tumors."
+    help="Filters tiny boxes (in 1280×1280). Set 0 to disable. Too high can remove small pituitary tumors."
 )
     
     st.markdown("**Input Resolution:** {}x{}".format(IMG_SIZE, IMG_SIZE))
@@ -221,7 +221,7 @@ if uploaded:
                         st.write("**Size:** {}".format(out['preprocessing_info']['original_shape']))
 
                 with col2:
-                    st.subheader("Preprocessed (960x960)")
+                    st.subheader("Preprocessed (1280x1280)")
                     st.image(out["proc_img"], use_container_width=True)
 
                 with col3:
