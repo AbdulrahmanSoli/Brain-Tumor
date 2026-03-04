@@ -1,29 +1,21 @@
 import sys
 import types
 
-# Ultralytics imports cv2 at module level, which needs libGL.so.1 — unavailable
-# on Streamlit Cloud. We only use PIL for image I/O so we mock cv2 out entirely.
-_cv2_mock = types.ModuleType("cv2")
-_cv2_mock.__version__ = "4.8.0"
+# Ultralytics imports cv2 at module level which needs libGL.so.1 — unavailable
+# on Streamlit Cloud. We mock it with a catch-all so any attribute access
+# returns a no-op function and any constant lookup returns 0.
+class _CV2Mock(types.ModuleType):
+    """Returns a no-op callable for any missing attribute."""
+    __version__ = "4.8.0"
+    def __getattr__(self, name):
+        # Return 0 for ALL_CAPS names (constants), callable noop for everything else
+        if name.isupper():
+            return 0
+        def _noop(*args, **kwargs):
+            return None
+        return _noop
 
-# Stub every attribute ultralytics/patches.py touches at import time
-def _noop(*args, **kwargs): pass
-_cv2_mock.imshow   = _noop
-_cv2_mock.imread   = _noop
-_cv2_mock.imwrite  = _noop
-_cv2_mock.resize   = _noop
-_cv2_mock.cvtColor = _noop
-_cv2_mock.imencode = _noop
-_cv2_mock.imdecode = _noop
-_cv2_mock.waitKey  = _noop
-_cv2_mock.destroyAllWindows = _noop
-_cv2_mock.IMREAD_COLOR      = 1
-_cv2_mock.IMREAD_GRAYSCALE  = 0
-_cv2_mock.INTER_LINEAR      = 1
-_cv2_mock.INTER_AREA        = 3
-_cv2_mock.COLOR_BGR2RGB     = 4
-_cv2_mock.COLOR_RGB2BGR     = 4
-sys.modules["cv2"] = _cv2_mock
+sys.modules["cv2"] = _CV2Mock("cv2")
 
 import streamlit as st
 import numpy as np
