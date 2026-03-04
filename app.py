@@ -131,7 +131,7 @@ def get_model_safe():
 # -----------------------------
 # Postprocessing + draw
 # -----------------------------
-def predict_tumor(pil_img: Image.Image, conf=0.25, iou=0.45, min_area=80):
+def predict_tumor(pil_img: Image.Image, conf=0.45, iou=0.45, min_area=1800):
     try:
         proc, preprocessing_info = preprocess_mri(pil_img)
         
@@ -205,17 +205,17 @@ with st.sidebar:
     st.markdown("### Model Parameters")
     conf = st.slider(
         "Confidence Threshold",
-        0.0, 1.0, 0.25, 0.01,
+       0.20, 0.90, 0.45, 0.01,
         help="Minimum confidence score for detection. Lower = more detections."
     )
     iou = st.slider(
         "NMS IoU",
-        0.1, 0.9, 0.45, 0.01,
+        0.30, 0.70, 0.45, 0.01,
         help="Intersection over Union threshold for Non-Maximum Suppression."
     )
     min_area = st.slider(
         "Minimum Box Area",
-        0, 5000, 80, 10,
+        300, 15000, 1800, 50,
         help="Filter out detections smaller than this pixel area (in 960x960 image)."
     )
     
