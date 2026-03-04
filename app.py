@@ -1,22 +1,3 @@
-import sys
-import types
-
-# Ultralytics imports cv2 at module level which needs libGL.so.1 — unavailable
-# on Streamlit Cloud. We mock it with a catch-all so any attribute access
-# returns a no-op function and any constant lookup returns 0.
-class _CV2Mock(types.ModuleType):
-    """Returns a no-op callable for any missing attribute."""
-    __version__ = "4.8.0"
-    def __getattr__(self, name):
-        # Return 0 for ALL_CAPS names (constants), callable noop for everything else
-        if name.isupper():
-            return 0
-        def _noop(*args, **kwargs):
-            return None
-        return _noop
-
-sys.modules["cv2"] = _CV2Mock("cv2")
-
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
