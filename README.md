@@ -1,6 +1,6 @@
-# 🧠 Brain Tumor Detection — YOLOv8
+# 🧠 Brain Tumor Detection — YOLO26n
 
-A real-time brain tumor detection web app built with YOLOv8 and Streamlit. Upload a brain MRI scan and the model detects and classifies tumors — glioma, meningioma, or pituitary — with bounding boxes and a confidence heatmap overlay.
+A real-time brain tumor detection web app built with YOLO26n and Streamlit. Upload a brain MRI scan and the model detects and classifies tumors — glioma, meningioma, or pituitary — with bounding boxes and a confidence heatmap overlay.
 
 ---
 
@@ -46,7 +46,7 @@ Trained on a combined dataset of labeled MRI scans across 3 tumor classes.
 ```
 brain-tumor/
 ├── app.py              # Streamlit app
-├── best.pt             # Trained YOLOv8 weights
+├── best.pt             # Trained YOLO26n weights
 ├── requirements.txt    # Python dependencies
 ├── packages.txt        # System dependencies (Streamlit Cloud)
 └── README.md
