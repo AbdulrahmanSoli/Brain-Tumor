@@ -1,3 +1,16 @@
+import subprocess
+import sys
+
+# Force headless OpenCV before ultralytics imports cv2.
+# ultralytics pulls in opencv-python (GUI build) which needs libGL.so.1 —
+# unavailable on Streamlit Cloud's headless servers.
+# Reinstalling headless here ensures it always wins at runtime.
+subprocess.run(
+    [sys.executable, "-m", "pip", "install",
+     "opencv-python-headless", "--force-reinstall", "--quiet"],
+    check=False,
+)
+
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -11,39 +24,95 @@ IMG_SIZE = 960  # locked
 
 
 # Custom CSS for better styling
-def load_css():
+def load_css(dark: bool = False):
+    if dark:
+        theme = """
+            /* ── Dark mode base ── */
+            html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+                background-color: #0e1117 !important;
+                color: #e0e0e0 !important;
+            }
+            [data-testid="stSidebar"] {
+                background-color: #161b22 !important;
+                border-right: 1px solid #30363d;
+            }
+            [data-testid="stSidebar"] * { color: #c9d1d9 !important; }
+            h1, h2, h3, h4, h5, h6, p, span, label, div {
+                color: #e0e0e0 !important;
+            }
+            /* Inputs & sliders */
+            [data-testid="stSlider"] > div > div { background: #21262d !important; }
+            [data-baseweb="select"] > div {
+                background-color: #21262d !important;
+                border-color: #30363d !important;
+                color: #e0e0e0 !important;
+            }
+            /* File uploader */
+            [data-testid="stFileUploader"] {
+                background-color: #161b22 !important;
+                border: 1px dashed #30363d !important;
+                border-radius: 8px;
+            }
+            /* Expander */
+            [data-testid="stExpander"] {
+                background-color: #161b22 !important;
+                border: 1px solid #30363d !important;
+                border-radius: 8px;
+            }
+            /* Metric */
+            [data-testid="metric-container"] {
+                background-color: #161b22 !important;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                padding: 12px;
+            }
+            /* Dataframe */
+            [data-testid="stDataFrame"] { background-color: #161b22 !important; }
+            /* Divider */
+            hr { border-color: #30363d !important; }
+        """
+        param_bg = "#1c2128"
+    else:
+        theme = ""
+        param_bg = "#f8f9fa"
+
     st.markdown("""
         <style>
-            .metric-card {
+            {theme}
+            .metric-card {{
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white;
+                color: white !important;
                 text-align: center;
                 margin: 10px 0;
-            }
-            .tumor-detected {
+            }}
+            .tumor-detected {{
                 background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white;
+                color: white !important;
                 margin: 10px 0;
-            }
-            .no-tumor {
+            }}
+            .no-tumor {{
                 background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white;
+                color: white !important;
                 margin: 10px 0;
-            }
-            .parameter-section {
-                background-color: #f8f9fa;
+            }}
+            .parameter-section {{
+                background-color: {param_bg};
                 padding: 15px;
                 border-radius: 8px;
                 margin: 10px 0;
-            }
+            }}
+            /* Force coloured-card text to always be white */
+            .tumor-detected *, .no-tumor *, .metric-card * {{
+                color: white !important;
+            }}
         </style>
-    """, unsafe_allow_html=True)
+    """.format(theme=theme, param_bg=param_bg), unsafe_allow_html=True)
 
 
 # -----------------------------
@@ -270,7 +339,12 @@ def generate_heatmap(
 # UI
 # -----------------------------
 st.set_page_config(page_title="Brain MRI Tumor Detection", layout="wide")
-load_css()
+
+# ── Session state ──────────────────────────────────────────────────────────────
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+load_css(dark=st.session_state.dark_mode)
 
 # Header
 st.title("Brain MRI Tumor Detection")
@@ -278,6 +352,14 @@ st.markdown("Using YOLOv8 for real-time tumor detection in brain MRI scans")
 
 # Sidebar controls
 with st.sidebar:
+    # ── Dark mode toggle ───────────────────────────────────────────────────────
+    st.markdown("---")
+    dm_label = "☀️ Light Mode" if st.session_state.dark_mode else "🌙 Dark Mode"
+    if st.button(dm_label, use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
+    st.markdown("---")
+
     st.header("Detection Settings")
     
     st.markdown("### Model Parameters")
