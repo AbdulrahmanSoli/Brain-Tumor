@@ -203,7 +203,7 @@ with st.sidebar:
     st.header("Detection Settings")
     
     st.markdown("### Model Parameters")
-   conf = st.slider(
+    conf = st.slider(
     "Confidence Threshold",
     0.10, 0.60, 0.20, 0.01,
     help="Lower = more detections (higher sensitivity). Higher = fewer false positives."
