@@ -131,7 +131,7 @@ def get_model_safe():
 # -----------------------------
 # Postprocessing + draw
 # -----------------------------
-def predict_tumor(pil_img: Image.Image, conf=0.45, iou=0.45, min_area=1800):
+def predict_tumor(pil_img, conf=0.20, iou=0.45, min_area=600):
     try:
         proc, preprocessing_info = preprocess_mri(pil_img)
         
@@ -203,21 +203,21 @@ with st.sidebar:
     st.header("Detection Settings")
     
     st.markdown("### Model Parameters")
-    conf = st.slider(
-        "Confidence Threshold",
-       0.20, 0.90, 0.45, 0.01,
-        help="Minimum confidence score for detection. Lower = more detections."
-    )
+   conf = st.slider(
+    "Confidence Threshold",
+    0.10, 0.60, 0.20, 0.01,
+    help="Lower = more detections (higher sensitivity). Higher = fewer false positives."
+)
     iou = st.slider(
-        "NMS IoU",
-        0.30, 0.70, 0.45, 0.01,
-        help="Intersection over Union threshold for Non-Maximum Suppression."
-    )
+    "NMS IoU",
+    0.30, 0.70, 0.45, 0.01,
+    help="Higher keeps more overlapping boxes. Lower removes overlaps more aggressively."
+)
     min_area = st.slider(
-        "Minimum Box Area",
-        300, 15000, 1800, 50,
-        help="Filter out detections smaller than this pixel area (in 960x960 image)."
-    )
+    "Minimum Box Area",
+    0, 15000, 600, 50,
+    help="Filters tiny boxes (in 960×960). Set 0 to disable. Too high can remove small pituitary tumors."
+)
     
     st.markdown("**Input Resolution:** {}x{}".format(IMG_SIZE, IMG_SIZE))
     st.markdown("All images are resized to this square resolution for consistent processing.")
