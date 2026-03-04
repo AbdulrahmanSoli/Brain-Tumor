@@ -21,7 +21,7 @@ Trained on a combined dataset of labeled MRI scans across 3 tumor classes.
 | Meningioma | 110 | 110 | 0.960 | 0.605 | 0.954 | 0.933 |
 | Pituitary | 91 | 95 | 0.822 | 0.412 | 0.879 | 0.726 |
 
-- **Architecture:** YOLOv8 (YOLO26n, 122 layers, 2.37M parameters, 5.2 GFLOPs)
+- **Architecture:** YOLO26n (122 layers, 2.37M parameters, 5.2 GFLOPs)
 - **Input resolution:** 1280 × 1280
 - **Training:** 100 epochs, patience 20, auto batch (A100 GPU)
 - **Inference speed:** 0.7ms preprocess, 3.4ms inference per image
@@ -77,7 +77,7 @@ Training was done in Google Colab on an NVIDIA A100 GPU. Two Kaggle datasets wer
 ```bash
 yolo detect train \
   data=/content/brain.yaml \
-  model=/content/best.pt \
+  model=yolo26n.pt \
   epochs=100 \
   patience=20 \
   imgsz=1280 \
