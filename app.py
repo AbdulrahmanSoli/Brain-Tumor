@@ -367,12 +367,6 @@ st.set_page_config(page_title="Brain MRI — Tumor Detection", layout="wide",
 load_css()
 
 st.title("🧠 Brain MRI — Tumor Detection")
-st.markdown(
-    "<p style='color:#4a7fa5;font-size:0.85rem;margin-top:-8px;font-family:IBM Plex Mono,monospace;"
-    "letter-spacing:0.05em;'>YOLO26n · 1280×1280 · glioma · meningioma · pituitary</p>",
-    unsafe_allow_html=True
-)
-
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("<div class='section-label'>Detection</div>", unsafe_allow_html=True)
@@ -390,9 +384,19 @@ with st.sidebar:
     heatmap_alpha = st.slider("Opacity", 0.1, 0.9, 0.55, 0.05)
     heatmap_sigma = st.slider("Blob Spread", 0.1, 1.0, 0.35, 0.05)
 
+    st.markdown("<div class='section-label' style='margin-top:20px;'>Legend</div>",
+                unsafe_allow_html=True)
+    st.markdown("""
+        <span class='badge badge-glioma'>Glioma</span>
+        <span class='badge badge-meningioma'>Meningioma</span>
+        <span class='badge badge-pituitary'>Pituitary</span>
+        <p style='font-size:0.68rem;color:#6a4040;margin-top:8px;'>
+        ⚠ Types are indicative only</p>
+    """, unsafe_allow_html=True)
+
     st.markdown(
-        "<p style='font-size:0.7rem;color:#3a5a72;margin-top:16px;'>"
-        "Input: {}×{} px</p>".format(IMG_SIZE, IMG_SIZE),
+        "<p style='font-size:0.7rem;color:#3a5a72;margin-top:8px;'>"
+        "Model: YOLO26n · {}×{} px</p>".format(IMG_SIZE, IMG_SIZE),
         unsafe_allow_html=True
     )
 
