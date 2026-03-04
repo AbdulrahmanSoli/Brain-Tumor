@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import time
-import matplotlib.cm as cm
 
 from ultralytics import YOLO
 
@@ -190,58 +189,6 @@ def draw_boxes_pil(pil_img: Image.Image, xyxy: np.ndarray, confs: np.ndarray) ->
 
 
 # -----------------------------
-# Heatmap
-# -----------------------------
-def generate_heatmap(pil_img, xyxy, confs, colormap="jet", alpha=0.55, sigma_scale=0.35):
-    """
-    Overlay a confidence-weighted Gaussian heatmap on the preprocessed MRI.
-    Each detection box contributes a Gaussian blob weighted by its confidence score.
-    """
-    h, w = IMG_SIZE, IMG_SIZE
-    heatmap = np.zeros((h, w), dtype=np.float32)
-
-    xs = np.arange(w, dtype=np.float32)
-    ys = np.arange(h, dtype=np.float32)
-    xx, yy = np.meshgrid(xs, ys)
-
-    for (x0, y0, x1, y1), conf_val in zip(xyxy, confs):
-        cx = (x0 + x1) / 2.0
-        cy = (y0 + y1) / 2.0
-        sigma_x = max(sigma_scale * (x1 - x0) / 2.0, 8.0)
-        sigma_y = max(sigma_scale * (y1 - y0) / 2.0, 8.0)
-        gauss = np.exp(
-            -(((xx - cx) ** 2) / (2 * sigma_x ** 2) +
-              ((yy - cy) ** 2) / (2 * sigma_y ** 2))
-        )
-        heatmap += float(conf_val) * gauss
-
-    if heatmap.max() > 0:
-        heatmap /= heatmap.max()
-
-    cmap = cm.get_cmap(colormap)
-    colored_rgb = (cmap(heatmap)[:, :, :3] * 255).astype(np.uint8)
-    heat_pil = Image.fromarray(colored_rgb, "RGB")
-
-    blended = Image.blend(pil_img.convert("RGB"), heat_pil, alpha=alpha)
-
-    # Colorbar
-    bar_w = 22
-    bar = np.linspace(1.0, 0.0, h).reshape(h, 1)
-    bar_rgb = (cmap(bar)[:, :, :3] * 255).astype(np.uint8)
-    bar_img = Image.fromarray(np.tile(bar_rgb, (1, bar_w, 1)).astype(np.uint8), "RGB")
-
-    canvas = Image.new("RGB", (w + bar_w + 6, h), (20, 20, 20))
-    canvas.paste(blended, (0, 0))
-    canvas.paste(bar_img, (w + 6, 0))
-
-    draw = ImageDraw.Draw(canvas)
-    draw.text((w + 7, 4),      "High", fill=(255, 255, 255))
-    draw.text((w + 7, h - 16), "Low",  fill=(255, 255, 255))
-
-    return canvas
-
-
-# -----------------------------
 # UI
 # -----------------------------
 st.set_page_config(page_title="Brain MRI Tumor Detection", layout="wide")
@@ -258,7 +205,7 @@ with st.sidebar:
     st.markdown("### Model Parameters")
     conf = st.slider(
         "Confidence Threshold",
-        0.20, 0.90, 0.45, 0.01,
+       0.20, 0.90, 0.45, 0.01,
         help="Minimum confidence score for detection. Lower = more detections."
     )
     iou = st.slider(
@@ -271,25 +218,7 @@ with st.sidebar:
         300, 15000, 1800, 50,
         help="Filter out detections smaller than this pixel area (in 960x960 image)."
     )
-
-    st.markdown("### Heatmap Settings")
-    heatmap_colormap = st.selectbox(
-        "Colormap",
-        ["jet", "hot", "inferno", "plasma", "magma", "YlOrRd"],
-        index=0,
-        help="Color scheme for the heatmap overlay."
-    )
-    heatmap_alpha = st.slider(
-        "Heatmap Opacity",
-        0.1, 0.9, 0.55, 0.05,
-        help="How strongly the heatmap blends over the MRI."
-    )
-    heatmap_sigma = st.slider(
-        "Blob Spread",
-        0.1, 1.0, 0.35, 0.05,
-        help="How wide each detection's heatmap blob spreads."
-    )
-
+    
     st.markdown("**Input Resolution:** {}x{}".format(IMG_SIZE, IMG_SIZE))
     st.markdown("All images are resized to this square resolution for consistent processing.")
 
@@ -299,18 +228,20 @@ uploaded = st.file_uploader("Upload an MRI Image", type=["png", "jpg", "jpeg"])
 
 if uploaded:
     try:
+        # Load and validate image
         pil_img = Image.open(uploaded).convert("RGB")
         
         if pil_img.size[0] < 64 or pil_img.size[1] < 64:
             st.error("Image is too small. Please upload an image with dimensions >= 64x64 pixels.")
         else:
+            # Run prediction
             with st.spinner("Processing image..."):
                 out = predict_tumor(pil_img, conf=conf, iou=iou, min_area=min_area)
             
             if out is None:
                 st.error("Prediction failed. Please try again.")
             else:
-                # ── Row 1: Original | Preprocessed | Detection ───────────────
+                # Display results in columns
                 col1, col2, col3 = st.columns([1, 1, 1])
 
                 with col1:
@@ -342,19 +273,20 @@ if uploaded:
                         boxed = draw_boxes_pil(out["proc_img"], out["xyxy"], out["conf"])
                         st.image(boxed, use_container_width=True)
                         
+                        # Detailed tumor table
                         st.markdown("### Detection Details")
                         tumor_data = []
-                        for i, (bbox, c) in enumerate(zip(out["xyxy"], out["conf"])):
+                        for i, (bbox, conf) in enumerate(zip(out["xyxy"], out["conf"])):
                             x0, y0, x1, y1 = bbox
-                            bw = x1 - x0
-                            bh = y1 - y0
+                            w = x1 - x0
+                            h = y1 - y0
                             tumor_data.append({
                                 "Tumor ID": i + 1,
-                                "Confidence": "{:.2%}".format(c),
+                                "Confidence": "{:.2%}".format(conf),
                                 "X": "{}".format(int(x0)),
                                 "Y": "{}".format(int(y0)),
-                                "Width": "{}".format(int(bw)),
-                                "Height": "{}".format(int(bh))
+                                "Width": "{}".format(int(w)),
+                                "Height": "{}".format(int(h))
                             })
                         st.dataframe(tumor_data, use_container_width=True)
                     else:
@@ -365,33 +297,7 @@ if uploaded:
                             </div>
                         """, unsafe_allow_html=True)
 
-                # ── Row 2: Heatmap (only shown when tumor detected) ───────────
-                if out["has_tumor"]:
-                    st.markdown("---")
-                    st.subheader("Confidence Heatmap")
-                    heat_img = generate_heatmap(
-                        out["proc_img"],
-                        out["xyxy"],
-                        out["conf"],
-                        colormap=heatmap_colormap,
-                        alpha=heatmap_alpha,
-                        sigma_scale=heatmap_sigma,
-                    )
-                    st.image(heat_img, use_container_width=True,
-                             caption="Confidence heatmap — red/yellow = high confidence, blue = low")
-
-                    with st.expander("How the heatmap works"):
-                        st.markdown("""
-                        Each detected bounding box contributes a **Gaussian blob** centred on
-                        the box, weighted by its **confidence score**. Blobs are summed and
-                        normalised, then the chosen colormap is applied.
-
-                        - **Hot colours** (red/yellow) → high confidence regions
-                        - **Cool colours** (blue/purple) → low or no activity
-                        - Use the sidebar sliders to adjust opacity and blob spread
-                        """)
-
-                # ── Row 3: Metrics ────────────────────────────────────────────
+                # Processing metrics
                 st.markdown("---")
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
                 
@@ -415,20 +321,16 @@ if uploaded:
 else:
     st.info("Upload a brain MRI image to get started with tumor detection.")
     
+    # Add some helpful information
     with st.expander("How to use this app"):
         st.markdown("""
         1. **Upload an MRI image** in PNG or JPG format
         2. **Adjust detection settings** in the sidebar if needed
         3. **View results** showing the original, preprocessed, and annotated images
-        4. **Review the heatmap** to see confidence intensity across the scan
-
-        **Detection tips:**
+        4. **Review detection details** including tumor locations and confidence scores
+        
+        **Tips:**
         - Lower confidence threshold = more detections (more false positives)
         - Higher confidence threshold = fewer detections (more false negatives)
         - Adjust minimum area to filter out very small detected regions
-
-        **Heatmap tips:**
-        - jet / hot give classic medical-imaging style coloring
-        - Increase Blob Spread for a smoother, wider activation region
-        - Reduce Heatmap Opacity to see the underlying MRI more clearly
         """)
