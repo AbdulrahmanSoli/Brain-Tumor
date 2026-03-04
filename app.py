@@ -1,3 +1,6 @@
+import subprocess, sys
+subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless", "--force-reinstall", "--quiet"], check=False)
+
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
