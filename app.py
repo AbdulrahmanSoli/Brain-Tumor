@@ -1,22 +1,7 @@
-import subprocess
-import sys
-
-# Force headless OpenCV before ultralytics imports cv2.
-# ultralytics pulls in opencv-python (GUI build) which needs libGL.so.1 —
-# unavailable on Streamlit Cloud's headless servers.
-# Reinstalling headless here ensures it always wins at runtime.
-subprocess.run(
-    [sys.executable, "-m", "pip", "install",
-     "opencv-python-headless", "--force-reinstall", "--quiet"],
-    check=False,
-)
-
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import time
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 
 from ultralytics import YOLO
 
@@ -24,95 +9,39 @@ IMG_SIZE = 960  # locked
 
 
 # Custom CSS for better styling
-def load_css(dark: bool = False):
-    if dark:
-        theme = """
-            /* ── Dark mode base ── */
-            html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
-                background-color: #0e1117 !important;
-                color: #e0e0e0 !important;
-            }
-            [data-testid="stSidebar"] {
-                background-color: #161b22 !important;
-                border-right: 1px solid #30363d;
-            }
-            [data-testid="stSidebar"] * { color: #c9d1d9 !important; }
-            h1, h2, h3, h4, h5, h6, p, span, label, div {
-                color: #e0e0e0 !important;
-            }
-            /* Inputs & sliders */
-            [data-testid="stSlider"] > div > div { background: #21262d !important; }
-            [data-baseweb="select"] > div {
-                background-color: #21262d !important;
-                border-color: #30363d !important;
-                color: #e0e0e0 !important;
-            }
-            /* File uploader */
-            [data-testid="stFileUploader"] {
-                background-color: #161b22 !important;
-                border: 1px dashed #30363d !important;
-                border-radius: 8px;
-            }
-            /* Expander */
-            [data-testid="stExpander"] {
-                background-color: #161b22 !important;
-                border: 1px solid #30363d !important;
-                border-radius: 8px;
-            }
-            /* Metric */
-            [data-testid="metric-container"] {
-                background-color: #161b22 !important;
-                border: 1px solid #30363d;
-                border-radius: 8px;
-                padding: 12px;
-            }
-            /* Dataframe */
-            [data-testid="stDataFrame"] { background-color: #161b22 !important; }
-            /* Divider */
-            hr { border-color: #30363d !important; }
-        """
-        param_bg = "#1c2128"
-    else:
-        theme = ""
-        param_bg = "#f8f9fa"
-
+def load_css():
     st.markdown("""
         <style>
-            {theme}
-            .metric-card {{
+            .metric-card {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white !important;
+                color: white;
                 text-align: center;
                 margin: 10px 0;
-            }}
-            .tumor-detected {{
+            }
+            .tumor-detected {
                 background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white !important;
+                color: white;
                 margin: 10px 0;
-            }}
-            .no-tumor {{
+            }
+            .no-tumor {
                 background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
                 padding: 20px;
                 border-radius: 10px;
-                color: white !important;
+                color: white;
                 margin: 10px 0;
-            }}
-            .parameter-section {{
-                background-color: {param_bg};
+            }
+            .parameter-section {
+                background-color: #f8f9fa;
                 padding: 15px;
                 border-radius: 8px;
                 margin: 10px 0;
-            }}
-            /* Force coloured-card text to always be white */
-            .tumor-detected *, .no-tumor *, .metric-card * {{
-                color: white !important;
-            }}
+            }
         </style>
-    """.format(theme=theme, param_bg=param_bg), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
 # -----------------------------
@@ -260,91 +189,10 @@ def draw_boxes_pil(pil_img: Image.Image, xyxy: np.ndarray, confs: np.ndarray) ->
 
 
 # -----------------------------
-# Heatmap generation
-# -----------------------------
-def make_gaussian(size_h, size_w, center_y, center_x, sigma_y, sigma_x):
-    """Generate a 2D Gaussian blob."""
-    y = np.arange(size_h, dtype=np.float32)
-    x = np.arange(size_w, dtype=np.float32)
-    xx, yy = np.meshgrid(x, y)
-    gauss = np.exp(
-        -(((xx - center_x) ** 2) / (2 * sigma_x ** 2) +
-          ((yy - center_y) ** 2) / (2 * sigma_y ** 2))
-    )
-    return gauss
-
-
-def generate_heatmap(
-    pil_img: Image.Image,
-    xyxy: np.ndarray,
-    confs: np.ndarray,
-    colormap: str = "jet",
-    alpha: float = 0.55,
-    sigma_scale: float = 0.35,
-) -> Image.Image:
-    """
-    Overlay a confidence-weighted Gaussian heatmap on pil_img.
-
-    Each bounding box contributes a Gaussian blob whose:
-      - centre   = box centre
-      - sigma    = sigma_scale * half-diagonal of the box
-      - weight   = detection confidence
-    """
-    h, w = IMG_SIZE, IMG_SIZE
-    heatmap = np.zeros((h, w), dtype=np.float32)
-
-    for (x0, y0, x1, y1), conf in zip(xyxy, confs):
-        cx = (x0 + x1) / 2.0
-        cy = (y0 + y1) / 2.0
-        bw = x1 - x0
-        bh = y1 - y0
-        sigma_x = max(sigma_scale * bw / 2.0, 8.0)
-        sigma_y = max(sigma_scale * bh / 2.0, 8.0)
-        gauss = make_gaussian(h, w, cy, cx, sigma_y, sigma_x)
-        heatmap += float(conf) * gauss
-
-    if heatmap.max() > 0:
-        heatmap /= heatmap.max()
-
-    # Apply chosen colormap
-    cmap = cm.get_cmap(colormap)
-    colored = cmap(heatmap)                          # (H, W, 4) RGBA float
-    colored_rgb = (colored[:, :, :3] * 255).astype(np.uint8)
-    heat_pil = Image.fromarray(colored_rgb, "RGB")
-
-    # Blend with original
-    base = pil_img.convert("RGB")
-    blended = Image.blend(base, heat_pil, alpha=alpha)
-
-    # Draw a subtle colorbar on the right edge
-    bar_w = 20
-    bar = np.linspace(1.0, 0.0, h).reshape(h, 1)
-    bar_rgb = (cmap(bar)[:, :, :3] * 255).astype(np.uint8)
-    bar_img = Image.fromarray(
-        np.tile(bar_rgb, (1, bar_w, 1)).astype(np.uint8), "RGB"
-    )
-    canvas = Image.new("RGB", (w + bar_w + 6, h), (30, 30, 30))
-    canvas.paste(blended, (0, 0))
-    canvas.paste(bar_img, (w + 6, 0))
-
-    # Label the colorbar
-    draw = ImageDraw.Draw(canvas)
-    draw.text((w + 7, 4),        "High", fill=(255, 255, 255))
-    draw.text((w + 7, h - 16),   "Low",  fill=(255, 255, 255))
-
-    return canvas
-
-
-# -----------------------------
 # UI
 # -----------------------------
 st.set_page_config(page_title="Brain MRI Tumor Detection", layout="wide")
-
-# ── Session state ──────────────────────────────────────────────────────────────
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-load_css(dark=st.session_state.dark_mode)
+load_css()
 
 # Header
 st.title("Brain MRI Tumor Detection")
@@ -352,14 +200,6 @@ st.markdown("Using YOLOv8 for real-time tumor detection in brain MRI scans")
 
 # Sidebar controls
 with st.sidebar:
-    # ── Dark mode toggle ───────────────────────────────────────────────────────
-    st.markdown("---")
-    dm_label = "☀️ Light Mode" if st.session_state.dark_mode else "🌙 Dark Mode"
-    if st.button(dm_label, use_container_width=True):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        st.rerun()
-    st.markdown("---")
-
     st.header("Detection Settings")
     
     st.markdown("### Model Parameters")
@@ -378,25 +218,7 @@ with st.sidebar:
         0, 5000, 80, 10,
         help="Filter out detections smaller than this pixel area (in 960x960 image)."
     )
-
-    st.markdown("### Heatmap Settings")
-    heatmap_colormap = st.selectbox(
-        "Colormap",
-        ["jet", "hot", "inferno", "plasma", "magma", "YlOrRd", "RdBu_r"],
-        index=0,
-        help="Color scheme for the heatmap overlay."
-    )
-    heatmap_alpha = st.slider(
-        "Heatmap Opacity",
-        0.1, 0.9, 0.55, 0.05,
-        help="Blend strength of the heatmap over the MRI image."
-    )
-    heatmap_sigma = st.slider(
-        "Blob Spread (σ scale)",
-        0.1, 1.0, 0.35, 0.05,
-        help="How far each detection's heatmap blob spreads. Higher = wider blobs."
-    )
-
+    
     st.markdown("**Input Resolution:** {}x{}".format(IMG_SIZE, IMG_SIZE))
     st.markdown("All images are resized to this square resolution for consistent processing.")
 
@@ -406,19 +228,21 @@ uploaded = st.file_uploader("Upload an MRI Image", type=["png", "jpg", "jpeg"])
 
 if uploaded:
     try:
+        # Load and validate image
         pil_img = Image.open(uploaded).convert("RGB")
         
         if pil_img.size[0] < 64 or pil_img.size[1] < 64:
             st.error("Image is too small. Please upload an image with dimensions >= 64x64 pixels.")
         else:
+            # Run prediction
             with st.spinner("Processing image..."):
                 out = predict_tumor(pil_img, conf=conf, iou=iou, min_area=min_area)
             
             if out is None:
                 st.error("Prediction failed. Please try again.")
             else:
-                # ── Row 1: Original | Preprocessed | Detections ──────────────
-                col1, col2, col3 = st.columns(3)
+                # Display results in columns
+                col1, col2, col3 = st.columns([1, 1, 1])
 
                 with col1:
                     st.subheader("Original Image")
@@ -427,13 +251,13 @@ if uploaded:
                         st.write("**Size:** {}".format(out['preprocessing_info']['original_shape']))
 
                 with col2:
-                    st.subheader("Preprocessed (960×960)")
+                    st.subheader("Preprocessed (960x960)")
                     st.image(out["proc_img"], use_container_width=True)
 
                 with col3:
-                    st.subheader("Bounding Box Result")
+                    st.subheader("Detection Result")
                     if out["has_tumor"]:
-                        max_conf  = float(out["conf"].max())
+                        max_conf = float(out["conf"].max())
                         mean_conf = float(out["conf"].mean())
                         num_tumors = len(out["conf"])
                         
@@ -448,6 +272,23 @@ if uploaded:
                         
                         boxed = draw_boxes_pil(out["proc_img"], out["xyxy"], out["conf"])
                         st.image(boxed, use_container_width=True)
+                        
+                        # Detailed tumor table
+                        st.markdown("### Detection Details")
+                        tumor_data = []
+                        for i, (bbox, conf) in enumerate(zip(out["xyxy"], out["conf"])):
+                            x0, y0, x1, y1 = bbox
+                            w = x1 - x0
+                            h = y1 - y0
+                            tumor_data.append({
+                                "Tumor ID": i + 1,
+                                "Confidence": "{:.2%}".format(conf),
+                                "X": "{}".format(int(x0)),
+                                "Y": "{}".format(int(y0)),
+                                "Width": "{}".format(int(w)),
+                                "Height": "{}".format(int(h))
+                            })
+                        st.dataframe(tumor_data, use_container_width=True)
                     else:
                         st.markdown("""
                             <div class="no-tumor">
@@ -455,66 +296,21 @@ if uploaded:
                                 <p>The model did not find any suspicious regions.</p>
                             </div>
                         """, unsafe_allow_html=True)
-                        st.image(out["proc_img"], use_container_width=True)
 
-                # ── Row 2: Heatmap ────────────────────────────────────────────
-                st.markdown("---")
-                st.subheader("Confidence Heatmap")
-
-                if out["has_tumor"]:
-                    heat_img = generate_heatmap(
-                        out["proc_img"],
-                        out["xyxy"],
-                        out["conf"],
-                        colormap=heatmap_colormap,
-                        alpha=heatmap_alpha,
-                        sigma_scale=heatmap_sigma,
-                    )
-                    st.image(heat_img, use_container_width=True,
-                             caption="Gaussian confidence heatmap — brighter regions = higher detection confidence")
-
-                    with st.expander("ℹ️ How the heatmap works"):
-                        st.markdown("""
-                        Each detected bounding box contributes a **Gaussian blob** centred at
-                        the box centre. The blob's intensity is weighted by the detection
-                        **confidence score** and its spread is controlled by the *Blob Spread*
-                        slider. Overlapping blobs are summed and the result is normalised to
-                        [0, 1] before applying the chosen colormap.
-
-                        - **Hot colours** (red/yellow) → high confidence activity  
-                        - **Cool colours** (blue/purple) → low or no activity  
-                        - Adjust *Heatmap Opacity* to balance the overlay against the MRI
-                        """)
-                else:
-                    st.info("No detections — heatmap is empty. Lower the confidence threshold to see candidate regions.")
-
-                # ── Row 3: Detection details & metrics ───────────────────────
-                if out["has_tumor"]:
-                    st.markdown("### Detection Details")
-                    tumor_data = []
-                    for i, (bbox, c) in enumerate(zip(out["xyxy"], out["conf"])):
-                        x0, y0, x1, y1 = bbox
-                        w = x1 - x0
-                        h = y1 - y0
-                        tumor_data.append({
-                            "Tumor ID": i + 1,
-                            "Confidence": "{:.2%}".format(c),
-                            "X": "{}".format(int(x0)),
-                            "Y": "{}".format(int(y0)),
-                            "Width":  "{}".format(int(w)),
-                            "Height": "{}".format(int(h))
-                        })
-                    st.dataframe(tumor_data, use_container_width=True)
-
+                # Processing metrics
                 st.markdown("---")
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
+                
                 with metric_col1:
                     st.metric("Processing Time", "{:.2f}s".format(out['inference_time']))
+                
                 with metric_col2:
                     st.metric("Detections", len(out["conf"]))
+                
                 with metric_col3:
                     if out["has_tumor"]:
-                        st.metric("Highest Confidence", "{:.2%}".format(float(out["conf"].max())))
+                        max_conf = float(out["conf"].max())
+                        st.metric("Highest Confidence", "{:.2%}".format(max_conf))
                     else:
                         st.metric("Highest Confidence", "N/A")
 
@@ -525,20 +321,16 @@ if uploaded:
 else:
     st.info("Upload a brain MRI image to get started with tumor detection.")
     
+    # Add some helpful information
     with st.expander("How to use this app"):
         st.markdown("""
         1. **Upload an MRI image** in PNG or JPG format
         2. **Adjust detection settings** in the sidebar if needed
-        3. **View results** — original, preprocessed, bounding-box overlay, and heatmap
-        4. **Customise the heatmap** colormap, opacity, and blob spread in the sidebar
+        3. **View results** showing the original, preprocessed, and annotated images
+        4. **Review detection details** including tumor locations and confidence scores
         
-        **Detection tips:**
-        - Lower confidence threshold → more detections (more false positives)
-        - Higher confidence threshold → fewer detections (more false negatives)
+        **Tips:**
+        - Lower confidence threshold = more detections (more false positives)
+        - Higher confidence threshold = fewer detections (more false negatives)
         - Adjust minimum area to filter out very small detected regions
-
-        **Heatmap tips:**
-        - `jet` / `hot` give classic medical-imaging style coloring
-        - Increase *Blob Spread* if you want a smoother, wider activation region
-        - Reduce *Heatmap Opacity* to see the underlying MRI more clearly
         """)
