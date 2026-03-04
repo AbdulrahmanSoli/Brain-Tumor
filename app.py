@@ -53,33 +53,10 @@ def _to_gray_np(img: Image.Image) -> np.ndarray:
 def _percentile_normalize(gray: np.ndarray):
     mask = gray > 0
     data = gray[mask] if mask.any() else gray.reshape(-1)
-
     lo, hi = np.percentile(data, (1, 99))
     gray = np.clip(gray, lo, hi)
     gray = (gray - lo) / (hi - lo + 1e-6)
     return (gray * 255.0).astype(np.uint8), lo, hi
-
-def _brain_bbox(gray_u8: np.ndarray):
-    t = max(5, int(np.percentile(gray_u8, 10)))
-    mask = gray_u8 > t
-
-    if mask.sum() < 100:
-        mask = gray_u8 > 0
-        if mask.sum() < 100:
-            return None
-
-    ys, xs = np.where(mask)
-    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
-
-def _expand_bbox(x0, y0, x1, y1, w, h, margin=0.08):
-    bw, bh = (x1 - x0 + 1), (y1 - y0 + 1)
-    pad_x = int(bw * margin)
-    pad_y = int(bh * margin)
-    x0 = max(0, x0 - pad_x)
-    y0 = max(0, y0 - pad_y)
-    x1 = min(w - 1, x1 + pad_x)
-    y1 = min(h - 1, y1 + pad_y)
-    return x0, y0, x1, y1
 
 def _square_pad(pil_img: Image.Image, fill=0) -> Image.Image:
     w, h = pil_img.size
@@ -92,22 +69,15 @@ def preprocess_mri(pil_img: Image.Image, margin: float = 0.08):
     gray = _to_gray_np(pil_img)
     gray_u8, lo, hi = _percentile_normalize(gray)
 
-    bbox = _brain_bbox(gray_u8)
     preprocessing_info = {
         "original_shape": pil_img.size,
         "percentile_lo": lo,
         "percentile_hi": hi,
-        "brain_bbox": bbox
+        "brain_bbox": None  # no longer used
     }
-
-    if bbox is not None:
-        h, w = gray_u8.shape
-        x0, y0, x1, y1 = _expand_bbox(*bbox, w=w, h=h, margin=margin)
-        gray_u8 = gray_u8[y0:y1 + 1, x0:x1 + 1]
 
     rgb = np.stack([gray_u8, gray_u8, gray_u8], axis=-1)
     pil_rgb = Image.fromarray(rgb, mode="RGB")
-
     pil_rgb = _square_pad(pil_rgb, fill=0)
     pil_rgb = pil_rgb.resize((IMG_SIZE, IMG_SIZE), resample=Image.BILINEAR)
     return pil_rgb, preprocessing_info
